@@ -1,6 +1,6 @@
 {
   "name": "@ettrloz/shortcut",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Making keyboard shortcuts easy",
   "author": "Ettrloz",
   "license": "MIT",
@@ -18,6 +18,10 @@
     "dist",
     "types"
   ],
+  "repository": "https://github.com/Ettrloz/shortcut.git",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "npx tsup --config tsup.config.ts && pnpm types",
     "prepare": "husky",
