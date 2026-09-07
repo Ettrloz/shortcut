@@ -1,0 +1,16 @@
+{
+  "name": "@ettrloz/shortcut",
+  "version": "1.0.0",
+  "scripts": {
+    "types": "npx tsc --declarationDir src --emitDeclarationOnly"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

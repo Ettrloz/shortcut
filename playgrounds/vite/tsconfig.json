@@ -1,0 +1,16 @@
+{
+  "extends": "./../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "src",
+    "paths": {
+      "@ettrloz/shortcut": ["./../../src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "./../../tsconfig.json"
+    }
+  ]
+}

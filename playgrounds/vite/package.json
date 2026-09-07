@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "playgrounds-vite",
+  "scripts": {
+    "dev": "npx vite dev --host --port 8001"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "@ettrloz/shortcut": "workspace:^"
+  }
+}
