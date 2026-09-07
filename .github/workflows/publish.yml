@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   publish:
-    name: Verify and Publish
+    name: Build and Publish
     runs-on: ubuntu-latest
 
     steps:
@@ -30,7 +30,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: 'https://npm.pkg.github.com'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -46,13 +45,19 @@ jobs:
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "❌ Tag version ($TAG_VERSION) != package.json version ($PKG_VERSION)"
+            echo "❌ Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
             exit 1
           fi
-          echo "✅ Version match: $PKG_VERSION"
+          echo "✅ Version matches: $PKG_VERSION"
+
+      - name: Publish to npmjs.org
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm publish --access public --registry=https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to GitHub Packages
         if: startsWith(github.ref, 'refs/tags/')
-        run: npm publish
+        run: npm publish --registry=https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
