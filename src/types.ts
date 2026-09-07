@@ -1,8 +1,18 @@
 export type EventKey = Record<string, (event: KeyboardEvent) => boolean>;
 
+export type KeyPredicate = (event: KeyboardEvent) => boolean;
+
 export type AliasesKey = Record<string, string>;
 
-export type EventCallback = (event: KeyboardEvent) => void;
+export type EventCallbackMeta<Command extends string = string, Match extends string = string> = {
+  command: Command;
+  event: KeyboardEvent;
+  matched?: Match[];
+};
+
+export type EventCallback<Command extends string = string, Match extends string = string> = (
+  event: EventCallbackMeta<Command, Match>
+) => void;
 
 export type ShortcutMap = {
   keys: EventKey;
@@ -43,17 +53,17 @@ export type EventShortcutOption = {
 
 export type ShortcutFunction<
   Keys extends string[] = [],
-  Aliases extends readonly string[] = [],
+  Aliases extends string[] = [],
   DefaultTarget extends AnyEventTarget = AnyEventTarget
 > = {
-  <Target extends AnyEventTarget = DefaultTarget>(
-    command: Keys[number] | `[${Aliases[number]}]`,
-    callback: EventCallback,
+  <Command extends GetCommand<Keys, Aliases>, Target extends AnyEventTarget = DefaultTarget>(
+    command: Command,
+    callback: EventCallback<Command, Keys[number]>,
     target?: Target
   ): ShortcutInstance<Target>;
-  <Target extends AnyEventTarget = DefaultTarget>(
-    command: string,
-    callback: EventCallback,
+  <Command extends string, Target extends AnyEventTarget = DefaultTarget>(
+    command: Command,
+    callback: EventCallback<Command, Keys[number]>,
     target?: Target
   ): ShortcutInstance<Target>;
   <Target extends AnyEventTarget = DefaultTarget>(
@@ -63,14 +73,17 @@ export type ShortcutFunction<
 
 export type ShortcutLateFunction<
   Keys extends string[] = [],
-  Aliases extends readonly string[] = [],
+  Aliases extends string[] = [],
   Target extends AnyEventTarget = AnyEventTarget
 > = {
-  (
-    command: Keys[number] | `[${Aliases[number]}]`,
-    callback: EventCallback
+  <Command extends GetCommand<Keys, Aliases>>(
+    command: Command,
+    callback: EventCallback<Command, Keys[number]>
   ): ShortcutInstance<Target>;
-  (command: string, callback: EventCallback): ShortcutInstance<Target>;
+  <Command extends string>(
+    command: Command,
+    callback: EventCallback<Command, Keys[number]>
+  ): ShortcutInstance<Target>;
 };
 
 export type ShortcutInstance<Target extends AnyEventTarget = AnyEventTarget> = {
@@ -81,5 +94,8 @@ export type ShortcutInstance<Target extends AnyEventTarget = AnyEventTarget> = {
 };
 
 /** @internal */
-export type FixedRecordKeyof<Obj extends Record<PropertyKey, any>> =
-  Obj extends Record<infer Key extends string, any> ? Key[] : never;
+export type FixedRecordKeyof<Obj extends Record<string, any>> = (keyof Obj & string)[];
+
+/** @internal */
+export type GetCommand<Keys extends string[] = [], Aliases extends string[] = []> =
+  Keys[number] | `[${Aliases[number]}]`;

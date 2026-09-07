@@ -1,13 +1,35 @@
 {
   "name": "@ettrloz/shortcut",
   "version": "1.0.0",
+  "description": "Making keyboard shortcuts easy",
+  "author": "Ettrloz",
+  "license": "MIT",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.mjs",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./dist/esm/index.mjs",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "types"
+  ],
   "scripts": {
-    "types": "npx tsc --declarationDir src --emitDeclarationOnly"
+    "build": "npx tsup --config tsup.config.ts && pnpm types",
+    "prepare": "husky",
+    "types": "npx tsc --declarationDir types --emitDeclarationOnly"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
+    "husky": "^9.1.7",
     "jsdom": "^30.0.1",
+    "lint-staged": "^17.5.0",
     "prettier": "^3.9.6",
+    "tsup": "^8.5.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",

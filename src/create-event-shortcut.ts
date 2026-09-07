@@ -6,63 +6,184 @@ import type {
   AnyEventTarget,
   EventCallback,
   EventKey,
-  EventShortcutAPI,
   EventShortcutInstance,
-  EventShortcutOption
+  EventShortcutOption,
+  ShortcutInstance
 } from './types';
+
+type EventPredicate = (event: KeyboardEvent) => boolean;
+
+type ResolvedKeyLiteral = {
+  type: 'KeyLiteral';
+  key: string;
+  predicate: EventPredicate;
+};
+
+type ResolvedKeySet = {
+  type: 'KeySet';
+  members: string[];
+  predicates: EventPredicate[];
+};
+
+type ResolvedNode = ResolvedKeyLiteral | ResolvedKeySet;
+
+type Handler = {
+  id: number;
+  command: string;
+  nodes: ResolvedNode[];
+  callback: EventCallback;
+};
+
+function validateRegistry(keys: EventKey, aliases: AliasesKey) {
+  for (const [name, predicate] of Object.entries(keys)) {
+    if (typeof predicate !== 'function') {
+      throw new Error(`Key '${name}' must be a predicate function.`);
+    }
+  }
+
+  for (const [char, key] of Object.entries(aliases)) {
+    if (!(key in keys)) {
+      throw new Error(`Alias '${char}' maps to unregistered key '${key}'.`);
+    }
+  }
+}
 
 export function createEventShortcut<const Option extends Partial<EventShortcutOption> = {}>(
   option?: Option
 ) {
-  const { defaultTarget = document, keys = DEFAULT_KEYS, aliases = DEFAULT_ALIASES } = option ?? {};
+  const {
+    defaultTarget = document,
+    keys = DEFAULT_KEYS,
+    aliases = DEFAULT_ALIASES
+  }: {
+    defaultTarget?: AnyEventTarget;
+    keys?: EventKey;
+    aliases?: AliasesKey;
+  } = option ?? {};
 
-  function createCommandMatcher(
-    command: string,
-    keys: EventKey,
-    aliases: AliasesKey,
-    event: KeyboardEvent
-  ) {
-    const parsed = parseCommand(command);
+  validateRegistry(keys, aliases);
 
-    return function runMatcher(callback: EventCallback) {
-      let run = true;
+  function resolveKey(name: string): EventPredicate {
+    const key = name in aliases ? aliases[name] : name;
+    const predicate = keys[key];
 
-      for (const data of parsed) {
-        if (data.type === 'KeyLiteral') {
-          if (!(data.key in keys)) {
-            throw new Error(`Command '${data.key}' does not registered.`);
-          }
+    if (!predicate) {
+      throw new Error(`Command '${name}' does not registered.`);
+    }
 
-          if (!keys[data.key](event)) {
-            run = false;
+    return predicate;
+  }
 
-            break;
-          }
-        } else {
-          run = data.set.some(char => {
-            const key = char in aliases ? aliases[char] : char;
+  function resolveCommand(command: string): ResolvedNode[] {
+    return parseCommand(command).map(data => {
+      if (data.type === 'KeyLiteral') {
+        return {
+          type: 'KeyLiteral',
+          key: data.key,
+          predicate: resolveKey(data.key)
+        };
+      }
 
-            if (!(key in keys)) {
-              throw new Error(`Command '${key}' does not registered.`);
-            }
+      return {
+        type: 'KeySet',
+        members: data.set,
+        predicates: data.set.map(resolveKey)
+      };
+    });
+  }
 
-            if (keys[key](event)) {
-              return true;
-            }
-          });
+  function match(nodes: ResolvedNode[], event: KeyboardEvent): string[] | null {
+    const parts: string[] = [];
+
+    for (const node of nodes) {
+      if (node.type === 'KeyLiteral') {
+        if (!node.predicate(event)) {
+          return null;
         }
-      }
 
-      if (run) {
-        callback(event);
+        parts.push(node.key);
+      } else {
+        const index = node.predicates.findIndex(predicate => predicate(event));
+
+        if (index === -1) {
+          return null;
+        }
+
+        parts.push(node.members[index]);
       }
+    }
+
+    return parts;
+  }
+
+  const handlers = new Map<AnyEventTarget, Handler[]>();
+
+  let lastId = 0;
+
+  function onKeyDown(event: Event) {
+    const target = event.currentTarget as AnyEventTarget;
+    const list = handlers.get(target);
+
+    if (!list) {
+      return;
+    }
+
+    const keyboardEvent = event as KeyboardEvent;
+
+    for (const handler of [...list]) {
+      const matched = match(handler.nodes, keyboardEvent);
+
+      if (matched) {
+        handler.callback({
+          command: handler.command,
+          event: keyboardEvent,
+          matched
+        });
+      }
+    }
+  }
+
+  function findHandler(value: number | ShortcutInstance): Handler | undefined {
+    const id = typeof value === 'number' ? value : value.id;
+
+    for (const list of handlers.values()) {
+      const handler = list.find(handler => handler.id === id);
+
+      if (handler) {
+        return handler;
+      }
+    }
+
+    return undefined;
+  }
+
+  function addHandler(
+    command: string,
+    callback: EventCallback,
+    target: AnyEventTarget
+  ): ShortcutInstance<AnyEventTarget> {
+    const id = ++lastId;
+    const list = handlers.get(target) ?? [];
+
+    list.push({ id, command, nodes: resolveCommand(command), callback });
+    handlers.set(target, list);
+
+    if (list.length === 1) {
+      target.addEventListener('keydown', onKeyDown);
+    }
+
+    return {
+      id,
+      target,
+      dispatch: () => dispatch(id),
+      remove: () => remove(id)
     };
   }
 
   function shortcut(...args: unknown[]) {
     if (args.length === 1 && typeof args[0] !== 'string') {
       return function lateShortcut(command: string, callback: EventCallback) {
-        shortcut(command, callback, args[0]);
+        return shortcut(command, callback, args[0]);
       };
     }
 
@@ -72,15 +193,40 @@ export function createEventShortcut<const Option extends Partial<EventShortcutOp
       AnyEventTarget
     ];
 
-    target.addEventListener('keydown', event => {
-      const matcher = createCommandMatcher(command, keys, aliases, event as KeyboardEvent);
+    return addHandler(command, callback, target);
+  }
 
-      matcher(callback);
+  function dispatch(value: number | ShortcutInstance) {
+    const handler = findHandler(value);
+
+    if (!handler) {
+      return;
+    }
+
+    handler.callback({
+      command: handler.command,
+      event: new KeyboardEvent('keydown', { bubbles: true })
     });
   }
 
-  const dispatch: EventShortcutAPI = () => {};
-  const remove: EventShortcutAPI = () => {};
+  function remove(value: number | ShortcutInstance) {
+    const id = typeof value === 'number' ? value : value.id;
+
+    for (const [target, list] of handlers) {
+      const next = list.filter(handler => handler.id !== id);
+
+      if (next.length !== list.length) {
+        handlers.set(target, next);
+
+        if (next.length === 0) {
+          handlers.delete(target);
+          target.removeEventListener('keydown', onKeyDown);
+        }
+
+        return;
+      }
+    }
+  }
 
   return {
     shortcut,
