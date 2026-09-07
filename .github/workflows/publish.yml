@@ -25,11 +25,12 @@ jobs:
           version: 10
           run_install: false
 
-      - name: Setup Node
+      - name: Setup Node (npm registry)
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -52,7 +53,7 @@ jobs:
 
       - name: Publish to npmjs.org
         if: startsWith(github.ref, 'refs/tags/')
-        run: npm publish --access public --registry=https://registry.npmjs.org
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
